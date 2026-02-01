@@ -35,7 +35,17 @@ export default function HospitalInvoicesPage() {
     }
 
     async function fetchInvoices() {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+      // Fetch API URL from server config
+      let API_URL = "http://localhost:4000";
+      try {
+        const configRes = await fetch("/api/config");
+        if (configRes.ok) {
+          const config = await configRes.json();
+          API_URL = config.apiUrl || API_URL;
+        }
+      } catch {
+        console.log("Using default API URL");
+      }
 
       try {
         // This is the API call that Primus will observe

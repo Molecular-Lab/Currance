@@ -5,8 +5,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, Building2, Heart, Activity, Scale, Droplets, Loader2, CheckCircle, FileText, PenTool, Hash } from "lucide-react";
-import { shortenAddress } from "@/lib/api";
-import { getRecordsByUser, formatDate, getStatusColor } from "@/lib/api";
+import { shortenAddress, getRecordsByUser, formatDate, getStatusColor } from "@/lib/api";
 import type { HealthRecord } from "@/types";
 
 // Default user ID for Primus observation
@@ -19,7 +18,17 @@ export default function HospitalRecordsPage() {
 
   useEffect(() => {
     async function fetchRecords() {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+      // Fetch API URL from server config
+      let API_URL = "http://localhost:4000";
+      try {
+        const configRes = await fetch("/api/config");
+        if (configRes.ok) {
+          const config = await configRes.json();
+          API_URL = config.apiUrl || API_URL;
+        }
+      } catch {
+        console.log("Using default API URL");
+      }
 
       try {
         // This is the API call that Primus will observe
