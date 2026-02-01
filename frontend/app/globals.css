@@ -4,29 +4,35 @@
 
 @layer base {
   :root {
-    /* Clean Gray Mobile Theme with Green Health Accent */
-    --background: 0 0% 98%; /* #fafafa */
+    /* CURANCE Brand Theme - Blue + Off-white */
+    --background: 40 20% 98%; /* Off-white cream #FAF9F6 */
     --foreground: 0 0% 9%; /* #171717 */
     --card: 0 0% 100%; /* #ffffff */
     --card-foreground: 0 0% 9%; /* #171717 */
     --popover: 0 0% 100%;
     --popover-foreground: 0 0% 9%;
-    --primary: 0 0% 9%; /* Black primary */
-    --primary-foreground: 0 0% 98%;
-    --secondary: 0 0% 96%; /* #f5f5f5 */
+    --primary: 217 54% 41%; /* CURANCE Blue #3B6BA5 */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 40 20% 96%; /* Light cream #f7f6f3 */
     --secondary-foreground: 0 0% 9%;
-    --muted: 0 0% 96%;
+    --muted: 40 10% 96%;
     --muted-foreground: 0 0% 45%; /* #737373 */
-    --accent: 142 76% 36%; /* Green health accent #22c55e */
-    --accent-foreground: 0 0% 98%;
+    --accent: 217 54% 41%; /* CURANCE Blue */
+    --accent-foreground: 0 0% 100%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 90%; /* #e5e5e5 */
-    --input: 0 0% 90%;
-    --ring: 142 76% 36%; /* Green ring for focus states */
+    --border: 40 10% 90%; /* #e5e3df */
+    --input: 40 10% 90%;
+    --ring: 217 54% 41%; /* Blue ring for focus states */
     --radius: 0.75rem;
 
-    /* Health accent colors */
+    /* CURANCE brand colors */
+    --curance-blue: 217 54% 41%; /* #3B6BA5 */
+    --curance-blue-dark: 217 54% 35%; /* Darker blue */
+    --curance-blue-light: 217 54% 95%; /* Light blue bg */
+    --curance-teal: 174 60% 45%; /* zkTLS teal accent */
+
+    /* Health/Success colors */
     --health-accent: 142 76% 36%; /* #22c55e */
     --health-accent-muted: 142 77% 73%; /* #86efac */
     --health-accent-bg: 142 77% 96%; /* #dcfce7 */
@@ -63,6 +69,23 @@
 
   .health-accent-border {
     border-color: hsl(var(--health-accent));
+  }
+
+  /* CURANCE brand utilities */
+  .curance-blue {
+    color: hsl(var(--curance-blue));
+  }
+
+  .curance-blue-bg {
+    background-color: hsl(var(--curance-blue));
+  }
+
+  .curance-blue-light-bg {
+    background-color: hsl(var(--curance-blue-light));
+  }
+
+  .curance-teal {
+    color: hsl(var(--curance-teal));
   }
 }
 

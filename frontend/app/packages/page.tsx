@@ -27,12 +27,36 @@ import {
 import { useAppStore } from "@/lib/store";
 import { selectPackage, formatCurrency } from "@/lib/api";
 
-// Crypto options with mock exchange rates
+// Crypto options with mock exchange rates and icons
 const cryptoOptions = [
-  { id: "usdc", name: "USDC", symbol: "USDC", rate: 1 },
-  { id: "eth", name: "Ethereum", symbol: "ETH", rate: 0.00031 },
-  { id: "btc", name: "Bitcoin", symbol: "BTC", rate: 0.000012 },
-  { id: "sol", name: "Solana", symbol: "SOL", rate: 0.0042 },
+  {
+    id: "usdc",
+    name: "USDC",
+    symbol: "USDC",
+    rate: 1,
+    icon: "https://cryptologos.cc/logos/usd-coin-usdc-logo.png"
+  },
+  {
+    id: "eth",
+    name: "Ethereum",
+    symbol: "ETH",
+    rate: 0.00031,
+    icon: "https://cryptologos.cc/logos/ethereum-eth-logo.png"
+  },
+  {
+    id: "btc",
+    name: "Bitcoin",
+    symbol: "BTC",
+    rate: 0.000012,
+    icon: "https://cryptologos.cc/logos/bitcoin-btc-logo.png"
+  },
+  {
+    id: "sol",
+    name: "Solana",
+    symbol: "SOL",
+    rate: 0.0042,
+    icon: "https://cryptologos.cc/logos/solana-sol-logo.png"
+  },
 ];
 
 // Coverage packages with 10-year coverage
@@ -340,12 +364,25 @@ export default function PackagesPage() {
             onValueChange={handleCryptoChange}
           >
             <SelectTrigger className="w-full mt-2">
-              <SelectValue placeholder="Select cryptocurrency" />
+              <div className="flex items-center gap-2">
+                <img
+                  src={selectedCrypto.icon}
+                  alt={selectedCrypto.name}
+                  className="w-5 h-5 rounded-full"
+                />
+                <span className="font-medium">{selectedCrypto.symbol}</span>
+                <span className="text-muted-foreground">({selectedCrypto.name})</span>
+              </div>
             </SelectTrigger>
             <SelectContent>
               {cryptoOptions.map((crypto) => (
                 <SelectItem key={crypto.id} value={crypto.id}>
                   <span className="flex items-center gap-2">
+                    <img
+                      src={crypto.icon}
+                      alt={crypto.name}
+                      className="w-5 h-5 rounded-full"
+                    />
                     <span className="font-medium">{crypto.symbol}</span>
                     <span className="text-muted-foreground">
                       ({crypto.name})
