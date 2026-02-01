@@ -101,7 +101,7 @@ export async function startHealthRecordAttestation(
     }
 
     const primus = getPrimus();
-    const templateId = ENV.CLAIM_TEMPLATE_ID;
+    const templateId = ENV.RECORD_TEMPLATE_ID;
 
     console.log("Starting attestation with template:", templateId);
     console.log("User address:", userAddress);

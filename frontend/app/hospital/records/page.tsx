@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, Building2, Heart, Activity, Scale, Droplets, Loader2, CheckCircle, FileText, PenTool, Hash } from "lucide-react";
 import { shortenAddress, getRecordsByUser, formatDate, getStatusColor } from "@/lib/api";
+import { ENV } from "@/lib/env";
 import type { HealthRecord } from "@/types";
 
 // Default user ID for Primus observation
@@ -18,22 +19,10 @@ export default function HospitalRecordsPage() {
 
   useEffect(() => {
     async function fetchRecords() {
-      // Fetch API URL from server config
-      let API_URL = "http://localhost:4000";
-      try {
-        const configRes = await fetch("/api/config");
-        if (configRes.ok) {
-          const config = await configRes.json();
-          API_URL = config.apiUrl || API_URL;
-        }
-      } catch {
-        console.log("Using default API URL");
-      }
-
       try {
         // This is the API call that Primus will observe
         // GET /api/records/user/{user_id}
-        const response = await fetch(`${API_URL}/api/records/user/${DEFAULT_USER_ID}`);
+        const response = await fetch(`${ENV.API_URL}/api/records/user/${DEFAULT_USER_ID}`);
 
         if (response.ok) {
           const data = await response.json();

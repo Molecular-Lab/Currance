@@ -13,6 +13,7 @@ import {
   getInvoiceStatusColor,
 } from "@/lib/api";
 import { useAppStore } from "@/lib/store";
+import { ENV } from "@/lib/env";
 import type { Invoice } from "@/types";
 
 // Default user ID for demo
@@ -35,21 +36,9 @@ export default function HospitalInvoicesPage() {
     }
 
     async function fetchInvoices() {
-      // Fetch API URL from server config
-      let API_URL = "http://localhost:4000";
-      try {
-        const configRes = await fetch("/api/config");
-        if (configRes.ok) {
-          const config = await configRes.json();
-          API_URL = config.apiUrl || API_URL;
-        }
-      } catch {
-        console.log("Using default API URL");
-      }
-
       try {
         // This is the API call that Primus will observe
-        const response = await fetch(`${API_URL}/api/invoices/user/${DEFAULT_USER_ID}`);
+        const response = await fetch(`${ENV.API_URL}/api/invoices/user/${DEFAULT_USER_ID}`);
 
         if (response.ok) {
           const data = await response.json();
