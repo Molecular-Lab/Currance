@@ -2,12 +2,11 @@
  * Primus zkTLS Integration for Curance
  *
  * Flow:
- * 1. Fetch env config from /api/config (client-side)
- * 2. Initialize SDK with appId and appSecret
- * 3. Generate request params with templateId and userAddress
- * 4. Sign the request
- * 5. Start attestation (triggers Primus Extension popup)
- * 6. Verify attestation result
+ * 1. Initialize SDK with appId and appSecret from ENV
+ * 2. Generate request params with templateId and userAddress
+ * 3. Sign the request
+ * 4. Start attestation (triggers Primus Extension popup)
+ * 5. Verify attestation result
  */
 
 import { PrimusZKTLS } from "@primuslabs/zktls-js-sdk";
@@ -37,31 +36,6 @@ export interface VerificationResult {
   error?: string;
 }
 
-interface EnvConfig {
-  primusAppId: string;
-  primusAppSecret: string;
-  apiUrl: string;
-  recordTemplateId: string;
-  claimTemplateId: string;
-}
-
-// Cached config
-let cachedEnv: EnvConfig | null = null;
-
-/**
- * Fetch env config from server API (for client-side use)
- */
-async function fetchEnv(): Promise<EnvConfig> {
-  if (cachedEnv) return cachedEnv;
-
-  const response = await fetch("/api/config");
-  if (!response.ok) {
-    throw new Error("Failed to fetch config");
-  }
-  cachedEnv = await response.json();
-  return cachedEnv!;
-}
-
 // Template IDs getter
 export function getTemplateIds() {
   return {
@@ -88,12 +62,9 @@ export async function initPrimusSDK(): Promise<boolean> {
   }
 
   try {
-    // Fetch env config from server API
-    const env = await fetchEnv();
-
-    // Initialize SDK
+    // Initialize SDK with ENV values
     primusZKTLS = new PrimusZKTLS();
-    const initResult = await primusZKTLS.init(env.primusAppId, env.primusAppSecret);
+    const initResult = await primusZKTLS.init(ENV.PRIMUS_APP_ID, ENV.PRIMUS_APP_SECRET);
     console.log("Primus SDK initialized:", initResult);
 
     isInitialized = true;
@@ -130,7 +101,7 @@ export async function startHealthRecordAttestation(
     }
 
     const primus = getPrimus();
-    const templateId = ENV.RECORD_TEMPLATE_ID;
+    const templateId = ENV.CLAIM_TEMPLATE_ID;
 
     console.log("Starting attestation with template:", templateId);
     console.log("User address:", userAddress);
@@ -237,7 +208,7 @@ export async function verifyAttestation(
  * Check if Primus is configured
  */
 export function isPrimusConfigured(): boolean {
-  return !!cachedEnv?.primusAppId;
+  return !!ENV.PRIMUS_APP_ID;
 }
 
 /**
@@ -249,8 +220,8 @@ export function getPrimusStatus(): {
   mode: "production" | "demo";
 } {
   return {
-    configured: !!cachedEnv?.primusAppId,
-    appId: cachedEnv?.primusAppId ? `${cachedEnv.primusAppId.slice(0, 10)}...` : "",
-    mode: cachedEnv?.primusAppId ? "production" : "demo",
+    configured: !!ENV.PRIMUS_APP_ID,
+    appId: ENV.PRIMUS_APP_ID ? `${ENV.PRIMUS_APP_ID.slice(0, 10)}...` : "",
+    mode: ENV.PRIMUS_APP_ID ? "production" : "demo",
   };
 }
