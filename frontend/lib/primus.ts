@@ -1,448 +1,523 @@
 /**
- * Primus zkTLS Integration Service
+ * Primus zkTLS Integration for Curance
  *
- * Handles attestation generation for:
- * - Health check verification (registration)
- * - Invoice verification (claims)
+ * This module handles the attestation and verification flow with Primus zkTLS.
+ *
+ * Flow:
+ * 1. Initialize SDK with appId (appSecret should be on backend)
+ * 2. Generate request params with templateId and userAddress
+ * 3. Sign the request via backend API
+ * 4. Start attestation (triggers Primus verification popup)
+ * 5. Verify attestation result
+ *
+ * References:
+ * - https://github.com/primus-labs/zktls-demo/tree/main/production-example
+ * - https://dev.primuslabs.xyz/myDevelopment/myProjects
  */
 
-import { keccak256, encodePacked } from 'viem';
-
-// ============================================================================
-// Configuration
-// ============================================================================
-
-const PRIMUS_CONFIG = {
-  appId: process.env.NEXT_PUBLIC_PRIMUS_APP_ID || '',
-  healthTemplateId: process.env.NEXT_PUBLIC_PRIMUS_HEALTH_TEMPLATE_ID || '',
-  invoiceTemplateId: process.env.NEXT_PUBLIC_PRIMUS_INVOICE_TEMPLATE_ID || '',
-  chainId: parseInt(process.env.NEXT_PUBLIC_CHAIN_ID || '84532'),
-};
-
-// ============================================================================
-// Types
-// ============================================================================
-
-export interface AttNetworkRequest {
-  url: string;
-  header: string;
-  method: string;
-  body: string;
-}
-
-export interface AttNetworkResponseResolve {
-  keyName: string;
-  parseType: string;
-  parsePath: string;
-}
-
-export interface Attestor {
-  attestorAddr: string;
-  url: string;
-}
-
-export interface PrimusAttestation {
-  recipient: string;
-  request: AttNetworkRequest;
-  responseResolve: AttNetworkResponseResolve[];
-  data: string;
-  attConditions: string;
-  timestamp: number;
-  additionParams: string;
-  attestors: Attestor[];
-  signatures: string[];
-}
-
-export interface HealthData {
-  healthScore: number;
-  bmi: string;
-  bloodPressure: string;
-  checkupDate: string;
-  hospitalId: string;
-}
-
-export interface InvoiceData {
-  invoiceId: string;
-  amount: number;
-  currency: string;
-  hospitalId: string;
-  hospitalAddress: string;
-  patientRef: string;
-  treatmentType: string;
-  invoiceDate: string;
+// Types for Primus SDK
+// Note: Primus SDK returns attestation as an object, not a string
+export interface PrimusAttestationData {
+  [key: string]: unknown;
 }
 
 export interface AttestationResult {
   success: boolean;
-  attestation?: PrimusAttestation;
-  data?: HealthData | InvoiceData;
-  dataHash?: string;
+  attestation?: string | PrimusAttestationData;
+  timestamp?: number;
+  data?: Record<string, unknown>;
   error?: string;
 }
 
-// ============================================================================
-// Primus Service Class
-// ============================================================================
+export interface VerificationResult {
+  valid: boolean;
+  data?: {
+    record_id?: string;
+    invoice_id?: string;
+    amount?: number;
+    [key: string]: unknown;
+  };
+  error?: string;
+}
 
-class PrimusService {
-  private primus: any = null;
-  private initialized = false;
+// Environment variables
+const PRIMUS_APP_ID = process.env.NEXT_PUBLIC_PRIMUS_APP_ID || "0x9480fd5d007b5f3f62696e20ac4bc716f5419926";
+const PRIMUS_APP_SECRET = process.env.NEXT_PUBLIC_PRIMUS_APP_SECRET || "0x1fabd7880c9f95bec0908db719040cfd61c10318de782bdaa35efe87d1591852";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
-  /**
-   * Check if Primus is configured
-   */
-  isConfigured(): boolean {
-    return !!(
-      PRIMUS_CONFIG.appId &&
-      PRIMUS_CONFIG.healthTemplateId
-    );
+// Pre-configured template IDs from Curance
+export const CURANCE_TEMPLATES = {
+  TEMPLATE_ID: "dd9d3411-aae1-4b97-9080-7780cdeb3166",
+  INVOICES: "invoice-template-id-placeholder", // To be configured
+} as const;
+
+// Platform detection for Primus SDK
+function getPlatformDevice(): "pc" | "android" | "ios" {
+  if (typeof navigator === "undefined") return "pc";
+
+  const userAgent = navigator.userAgent.toLowerCase();
+  if (userAgent.includes("android")) return "android";
+  if (userAgent.includes("iphone") || userAgent.includes("ipad")) return "ios";
+  return "pc";
+}
+
+/**
+ * Initialize Primus SDK (client-side only)
+ * Note: In production, appSecret should NEVER be on the client
+ */
+export async function initPrimusSDK(): Promise<boolean> {
+  if (typeof window === "undefined") {
+    console.warn("Primus SDK can only be initialized on client side");
+    return false;
   }
 
-  /**
-   * Check if Primus Extension is installed
-   */
-  isExtensionInstalled(): boolean {
-    if (typeof window === 'undefined') return false;
-    return !!(window as any).primus || !!(window as any).ethereum?.isPrimus;
-  }
+  try {
+    // Dynamic import to avoid SSR issues
+    const { PrimusZKTLS } = await import("@primuslabs/zktls-js-sdk");
 
-  /**
-   * Initialize Primus SDK
-   * Must be called before any attestation operations
-   */
-  async initialize(provider: any): Promise<boolean> {
-    if (this.initialized && this.primus) {
-      return true;
-    }
+    const primusZKTLS = new PrimusZKTLS();
+    const platform = getPlatformDevice();
 
-    try {
-      // Dynamic import to avoid SSR issues
-      const { PrimusNetwork } = await import('@primuslabs/network-js-sdk');
-      this.primus = new PrimusNetwork();
+    // Initialize with appId and appSecret
+    await primusZKTLS.init(PRIMUS_APP_ID, PRIMUS_APP_SECRET, { platform });
 
-      // Log supported chains
-      console.log('Primus supported chains:', this.primus.supportedChainIds);
+    // Store instance globally for reuse
+    (window as unknown as { primusZKTLS: typeof primusZKTLS }).primusZKTLS = primusZKTLS;
 
-      // Initialize with provider and chain
-      await this.primus.init(provider, PRIMUS_CONFIG.chainId);
-
-      this.initialized = true;
-      console.log('Primus SDK initialized successfully');
-      return true;
-    } catch (error) {
-      console.error('Failed to initialize Primus SDK:', error);
-      this.initialized = false;
-      return false;
-    }
-  }
-
-  /**
-   * Generate health check attestation
-   * Used during policy registration
-   */
-  async generateHealthAttestation(
-    userAddress: string
-  ): Promise<AttestationResult> {
-    if (!this.primus || !this.initialized) {
-      return {
-        success: false,
-        error: 'Primus SDK not initialized. Call initialize() first.',
-      };
-    }
-
-    try {
-      console.log('Starting health check attestation...');
-
-      // Step 1: Submit task to Primus network
-      const submitTaskParams = {
-        templateId: PRIMUS_CONFIG.healthTemplateId,
-        address: userAddress,
-      };
-
-      console.log('Submitting task:', submitTaskParams);
-      const taskResult = await this.primus.submitTask(submitTaskParams);
-      console.log('Task submitted:', taskResult);
-
-      // Step 2: Perform attestation (opens hospital portal)
-      const attestParams = {
-        ...submitTaskParams,
-        ...taskResult,
-      };
-
-      console.log('Starting attestation...');
-      const attestResult = await this.primus.attest(attestParams);
-      console.log('Attestation result:', attestResult);
-
-      // Step 3: Verify and poll for result
-      const verifyParams = {
-        taskId: attestResult[0].taskId,
-        reportTxHash: attestResult[0].reportTxHash,
-      };
-
-      console.log('Verifying attestation...');
-      const finalResult = await this.primus.verifyAndPollTaskResult(verifyParams);
-      console.log('Final result:', finalResult);
-
-      // Step 4: Extract health data from attestation
-      const attestation = finalResult as PrimusAttestation;
-      const healthData = JSON.parse(attestation.data) as HealthData;
-
-      // Step 5: Generate health data hash
-      const dataHash = this.generateHealthDataHash(healthData);
-
-      return {
-        success: true,
-        attestation,
-        data: healthData,
-        dataHash,
-      };
-    } catch (error) {
-      console.error('Health attestation failed:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Attestation failed',
-      };
-    }
-  }
-
-  /**
-   * Generate invoice attestation
-   * Used during claims verification
-   */
-  async generateInvoiceAttestation(
-    userAddress: string,
-    invoiceId?: string
-  ): Promise<AttestationResult> {
-    if (!this.primus || !this.initialized) {
-      return {
-        success: false,
-        error: 'Primus SDK not initialized. Call initialize() first.',
-      };
-    }
-
-    try {
-      console.log('Starting invoice attestation...');
-
-      // Step 1: Submit task
-      const submitTaskParams = {
-        templateId: PRIMUS_CONFIG.invoiceTemplateId,
-        address: userAddress,
-        ...(invoiceId && { params: { invoiceId } }),
-      };
-
-      const taskResult = await this.primus.submitTask(submitTaskParams);
-
-      // Step 2: Perform attestation
-      const attestParams = {
-        ...submitTaskParams,
-        ...taskResult,
-      };
-
-      const attestResult = await this.primus.attest(attestParams);
-
-      // Step 3: Verify and poll
-      const verifyParams = {
-        taskId: attestResult[0].taskId,
-        reportTxHash: attestResult[0].reportTxHash,
-      };
-
-      const finalResult = await this.primus.verifyAndPollTaskResult(verifyParams);
-
-      // Step 4: Extract invoice data
-      const attestation = finalResult as PrimusAttestation;
-      const invoiceData = JSON.parse(attestation.data) as InvoiceData;
-
-      // Step 5: Generate invoice hash
-      const dataHash = this.generateInvoiceHash(invoiceData);
-
-      return {
-        success: true,
-        attestation,
-        data: invoiceData,
-        dataHash,
-      };
-    } catch (error) {
-      console.error('Invoice attestation failed:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Attestation failed',
-      };
-    }
-  }
-
-  /**
-   * Generate hash of health data
-   */
-  generateHealthDataHash(healthData: HealthData): string {
-    const encoded = encodePacked(
-      ['uint256', 'string', 'string', 'string', 'string'],
-      [
-        BigInt(healthData.healthScore),
-        healthData.bmi,
-        healthData.bloodPressure,
-        healthData.checkupDate,
-        healthData.hospitalId,
-      ]
-    );
-    return keccak256(encoded);
-  }
-
-  /**
-   * Generate hash of invoice data
-   */
-  generateInvoiceHash(invoiceData: InvoiceData): string {
-    const encoded = encodePacked(
-      ['string', 'uint256', 'string', 'string', 'string'],
-      [
-        invoiceData.invoiceId,
-        BigInt(invoiceData.amount),
-        invoiceData.hospitalId,
-        invoiceData.hospitalAddress,
-        invoiceData.invoiceDate,
-      ]
-    );
-    return keccak256(encoded);
-  }
-
-  /**
-   * Serialize attestation for API transmission
-   */
-  serializeAttestation(attestation: PrimusAttestation): string {
-    return JSON.stringify(attestation);
-  }
-
-  /**
-   * Deserialize attestation from API
-   */
-  deserializeAttestation(json: string): PrimusAttestation {
-    return JSON.parse(json) as PrimusAttestation;
+    console.log("Primus SDK initialized successfully");
+    return true;
+  } catch (error) {
+    console.error("Failed to initialize Primus SDK:", error);
+    return false;
   }
 }
 
-// ============================================================================
-// Export Singleton Instance
-// ============================================================================
+/**
+ * Get the Primus SDK instance
+ */
+function getPrimusInstance(): unknown | null {
+  if (typeof window === "undefined") return null;
+  return (window as unknown as { primusZKTLS?: unknown }).primusZKTLS || null;
+}
 
-export const primusService = new PrimusService();
-
-// ============================================================================
-// Mock Implementation (for development without Primus Extension)
-// ============================================================================
-
-export function generateMockHealthAttestation(
-  userAddress: string
-): AttestationResult {
-  const healthData: HealthData = {
-    healthScore: Math.floor(Math.random() * 15) + 85,
-    bmi: (Math.random() * 5 + 20).toFixed(1),
-    bloodPressure: `${Math.floor(Math.random() * 20) + 110}/${Math.floor(Math.random() * 10) + 70}`,
-    checkupDate: new Date().toISOString().split('T')[0],
-    hospitalId: 'hospital_mock_001',
-  };
-
-  const dataHash = keccak256(
-    encodePacked(
-      ['uint256', 'string', 'string', 'string', 'string'],
-      [
-        BigInt(healthData.healthScore),
-        healthData.bmi,
-        healthData.bloodPressure,
-        healthData.checkupDate,
-        healthData.hospitalId,
-      ]
-    )
+/**
+ * Request backend to sign the attestation request
+ * This keeps appSecret secure on the server
+ */
+async function signRequestWithBackend(requestJson: string): Promise<string> {
+  const response = await fetch(
+    `${API_URL}/api/primus/sign?signParams=${encodeURIComponent(requestJson)}`
   );
 
-  const mockAttestation: PrimusAttestation = {
-    recipient: userAddress,
-    request: {
-      url: 'https://mock-hospital.example.com/api/health',
-      header: '{}',
-      method: 'GET',
-      body: '',
-    },
-    responseResolve: [
-      { keyName: 'healthScore', parseType: 'int', parsePath: '$.data.healthScore' },
-      { keyName: 'bmi', parseType: 'string', parsePath: '$.data.bmi' },
-    ],
-    data: JSON.stringify(healthData),
-    attConditions: '[]',
-    timestamp: Date.now(),
-    additionParams: '{"mock": true}',
-    attestors: [
-      {
-        attestorAddr: '0x0000000000000000000000000000000000000001',
-        url: 'https://mock-attestor.primuslabs.xyz',
-      },
-    ],
-    signatures: ['0x' + '00'.repeat(65)],
-  };
+  if (!response.ok) {
+    throw new Error("Failed to sign request with backend");
+  }
 
-  return {
-    success: true,
-    attestation: mockAttestation,
-    data: healthData,
-    dataHash,
-  };
+  const data = await response.json();
+  return data.signedRequest;
 }
 
-export function generateMockInvoiceAttestation(
+/**
+ * Start attestation flow for health records verification
+ *
+ * @param templateId - The Primus template ID for health records
+ * @param userAddress - User's wallet address
+ * @param recordId - The health record ID to verify
+ */
+export async function attestHealthRecord(
+  templateId: string,
   userAddress: string,
-  amount: number = 500
-): AttestationResult {
-  const invoiceData: InvoiceData = {
-    invoiceId: `INV-${Date.now()}`,
-    amount: amount * 1_000_000,
-    currency: 'USDC',
-    hospitalId: 'hospital_mock_001',
-    hospitalAddress: '0x0000000000000000000000000000000000000002',
-    patientRef: `PAT-${Math.random().toString(36).substring(7)}`,
-    treatmentType: 'General Consultation',
-    invoiceDate: new Date().toISOString().split('T')[0],
-  };
+  recordId: string
+): Promise<AttestationResult> {
+  try {
+    const primusZKTLS = getPrimusInstance() as {
+      generateRequestParams: (
+        templateId: string,
+        userAddress: string,
+        params?: Record<string, string>
+      ) => { toJsonString: () => string };
+      startAttestation: (signedRequest: string) => Promise<string>;
+      verifyAttestation: (attestation: string) => Promise<boolean>;
+    } | null;
 
-  const dataHash = keccak256(
-    encodePacked(
-      ['string', 'uint256', 'string', 'string', 'string'],
-      [
-        invoiceData.invoiceId,
-        BigInt(invoiceData.amount),
-        invoiceData.hospitalId,
-        invoiceData.hospitalAddress,
-        invoiceData.invoiceDate,
-      ]
-    )
-  );
+    if (!primusZKTLS) {
+      // Try to initialize if not already done
+      await initPrimusSDK();
+      const instance = getPrimusInstance();
+      if (!instance) {
+        throw new Error("Primus SDK not initialized");
+      }
+    }
 
-  const mockAttestation: PrimusAttestation = {
-    recipient: userAddress,
-    request: {
-      url: 'https://mock-hospital.example.com/api/invoice',
-      header: '{}',
-      method: 'GET',
-      body: '',
-    },
-    responseResolve: [
-      { keyName: 'invoiceId', parseType: 'string', parsePath: '$.data.id' },
-      { keyName: 'amount', parseType: 'int', parsePath: '$.data.amount' },
-    ],
-    data: JSON.stringify(invoiceData),
-    attConditions: '[]',
-    timestamp: Date.now(),
-    additionParams: '{"mock": true}',
-    attestors: [
-      {
-        attestorAddr: '0x0000000000000000000000000000000000000001',
-        url: 'https://mock-attestor.primuslabs.xyz',
-      },
-    ],
-    signatures: ['0x' + '00'.repeat(65)],
-  };
+    // For demo mode without actual Primus SDK
+    if (!PRIMUS_APP_ID) {
+      console.log("Demo mode: Simulating Primus attestation for record:", recordId);
+      await simulateDelay(2000);
+      return {
+        success: true,
+        attestation: `demo_attestation_${Date.now()}`,
+        timestamp: Date.now(),
+        data: { record_id: recordId },
+      };
+    }
+
+    // Production flow with actual Primus SDK
+    const primus = getPrimusInstance() as {
+      generateRequestParams: (
+        templateId: string,
+        userAddress: string,
+        params?: Record<string, string>
+      ) => { toJsonString: () => string };
+      startAttestation: (signedRequest: string) => Promise<string>;
+    };
+
+    // 1. Generate request params
+    const request = primus.generateRequestParams(templateId, userAddress, {
+      record_id: recordId,
+    });
+    const requestJson = request.toJsonString();
+
+    // 2. Sign request via backend (keeps appSecret secure)
+    const signedRequest = await signRequestWithBackend(requestJson);
+
+    // 3. Start attestation (triggers Primus popup)
+    const attestation = await primus.startAttestation(signedRequest);
+
+    return {
+      success: true,
+      attestation,
+      timestamp: Date.now(),
+      data: { record_id: recordId },
+    };
+  } catch (error) {
+    console.error("Attestation failed:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Attestation failed",
+    };
+  }
+}
+
+/**
+ * Start attestation flow for invoice verification
+ *
+ * @param templateId - The Primus template ID for invoices
+ * @param userAddress - User's wallet address
+ * @param invoiceId - The invoice ID to verify
+ */
+export async function attestInvoice(
+  templateId: string,
+  userAddress: string,
+  invoiceId: string
+): Promise<AttestationResult> {
+  try {
+    // For demo mode without actual Primus SDK
+    if (!PRIMUS_APP_ID) {
+      console.log("Demo mode: Simulating Primus attestation for invoice:", invoiceId);
+      await simulateDelay(2000);
+      return {
+        success: true,
+        attestation: `demo_attestation_${Date.now()}`,
+        timestamp: Date.now(),
+        data: { invoice_id: invoiceId },
+      };
+    }
+
+    const primus = getPrimusInstance() as {
+      generateRequestParams: (
+        templateId: string,
+        userAddress: string,
+        params?: Record<string, string>
+      ) => { toJsonString: () => string };
+      startAttestation: (signedRequest: string) => Promise<string>;
+    };
+
+    if (!primus) {
+      await initPrimusSDK();
+    }
+
+    // 1. Generate request params
+    const request = primus.generateRequestParams(templateId, userAddress, {
+      invoice_id: invoiceId,
+    });
+    const requestJson = request.toJsonString();
+
+    // 2. Sign request via backend
+    const signedRequest = await signRequestWithBackend(requestJson);
+
+    // 3. Start attestation
+    const attestation = await primus.startAttestation(signedRequest);
+
+    return {
+      success: true,
+      attestation,
+      timestamp: Date.now(),
+      data: { invoice_id: invoiceId },
+    };
+  } catch (error) {
+    console.error("Invoice attestation failed:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Attestation failed",
+    };
+  }
+}
+
+/**
+ * Verify an attestation result
+ *
+ * @param attestation - The attestation (can be string or object from Primus)
+ */
+export async function verifyAttestation(
+  attestation: string | PrimusAttestationData
+): Promise<VerificationResult> {
+  try {
+    console.log("Verifying attestation:", attestation);
+    console.log("Attestation type:", typeof attestation);
+
+    // For demo mode - check if it's a string starting with "demo_"
+    const isDemo = typeof attestation === "string" && attestation.startsWith("demo_");
+    if (!PRIMUS_APP_ID || isDemo) {
+      console.log("Demo mode: Simulating verification");
+      await simulateDelay(1000);
+      return {
+        valid: true,
+        data: {},
+      };
+    }
+
+    const primus = getPrimusInstance() as {
+      verifyAttestation: (attestation: string | PrimusAttestationData) => Promise<boolean>;
+    };
+
+    if (!primus) {
+      throw new Error("Primus SDK not initialized");
+    }
+
+    const isValid = await primus.verifyAttestation(attestation);
+    console.log("Primus verification result:", isValid);
+
+    return {
+      valid: isValid,
+      data: isValid ? {} : undefined,
+    };
+  } catch (error) {
+    console.error("Verification failed:", error);
+    return {
+      valid: false,
+      error: error instanceof Error ? error.message : "Verification failed",
+    };
+  }
+}
+
+/**
+ * Combined flow: Attest and verify health record
+ */
+export async function attestAndVerifyRecord(
+  templateId: string,
+  userAddress: string,
+  recordId: string
+): Promise<VerificationResult> {
+  // Step 1: Attest
+  const attestResult = await attestHealthRecord(templateId, userAddress, recordId);
+
+  if (!attestResult.success || !attestResult.attestation) {
+    return {
+      valid: false,
+      error: attestResult.error || "Attestation failed",
+    };
+  }
+
+  // Step 2: Verify (attestation can be string or object)
+  const verifyResult = await verifyAttestation(attestResult.attestation);
+
+  if (!verifyResult.valid) {
+    return {
+      valid: false,
+      error: verifyResult.error || "Verification failed",
+    };
+  }
 
   return {
-    success: true,
-    attestation: mockAttestation,
-    data: invoiceData,
-    dataHash,
+    valid: true,
+    data: {
+      record_id: recordId,
+      ...attestResult.data,
+    },
+  };
+}
+
+/**
+ * Combined flow: Attest and verify invoice
+ */
+export async function attestAndVerifyInvoice(
+  templateId: string,
+  userAddress: string,
+  invoiceId: string
+): Promise<VerificationResult> {
+  // Step 1: Attest
+  const attestResult = await attestInvoice(templateId, userAddress, invoiceId);
+
+  if (!attestResult.success || !attestResult.attestation) {
+    return {
+      valid: false,
+      error: attestResult.error || "Attestation failed",
+    };
+  }
+
+  // Step 2: Verify
+  const verifyResult = await verifyAttestation(attestResult.attestation);
+
+  if (!verifyResult.valid) {
+    return {
+      valid: false,
+      error: verifyResult.error || "Verification failed",
+    };
+  }
+
+  return {
+    valid: true,
+    data: {
+      invoice_id: invoiceId,
+      ...attestResult.data,
+    },
+  };
+}
+
+// Helper function for demo delays
+function simulateDelay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Start attestation flow using pre-configured Curance template
+ * This is the simplified flow where user doesn't need to know the template ID
+ *
+ * @param userAddress - User's wallet address
+ */
+export async function startHealthRecordAttestation(
+  userAddress: string
+): Promise<AttestationResult> {
+  try {
+    // Ensure SDK is initialized
+    let primus = getPrimusInstance() as {
+      generateRequestParams: (
+        templateId: string,
+        userAddress: string,
+        params?: Record<string, string>
+      ) => { toJsonString: () => string };
+      sign: (requestJson: string) => Promise<string>;
+      startAttestation: (signedRequest: string) => Promise<string>;
+    } | null;
+
+    if (!primus) {
+      await initPrimusSDK();
+      primus = getPrimusInstance() as typeof primus;
+      if (!primus) {
+        throw new Error("Failed to initialize Primus SDK");
+      }
+    }
+
+    // Use pre-configured template ID
+    const templateId = CURANCE_TEMPLATES.TEMPLATE_ID;
+
+    console.log("Starting attestation with template:", templateId);
+
+    // 1. Generate request params with pre-configured template
+
+    const request = primus.generateRequestParams("1bfd0a5c-185b-4e3e-b6ec-565232899005", userAddress);
+    const requestJson = request.toJsonString();
+
+    // 2. Sign the request (using client-side signing for demo)
+    const signedRequest = await primus.sign(requestJson);
+
+    // 3. Start attestation - this triggers the Primus Extension popup
+    const attestation = await primus.startAttestation(signedRequest);
+
+    return {
+      success: true,
+      attestation,
+      timestamp: Date.now(),
+      data: { template_id: templateId },
+    };
+  } catch (error) {
+    console.error("Health record attestation failed:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Attestation failed",
+    };
+  }
+}
+
+/**
+ * Start invoice attestation flow using pre-configured template
+ */
+export async function startInvoiceAttestation(
+  userAddress: string,
+  invoiceId: string
+): Promise<AttestationResult> {
+  try {
+    let primus = getPrimusInstance() as {
+      generateRequestParams: (
+        templateId: string,
+        userAddress: string,
+        params?: Record<string, string>
+      ) => { toJsonString: () => string };
+      sign: (requestJson: string) => Promise<string>;
+      startAttestation: (signedRequest: string) => Promise<string>;
+    } | null;
+
+    if (!primus) {
+      await initPrimusSDK();
+      primus = getPrimusInstance() as typeof primus;
+      if (!primus) {
+        throw new Error("Failed to initialize Primus SDK");
+      }
+    }
+
+    const templateId = CURANCE_TEMPLATES.INVOICES;
+
+    const request = primus.generateRequestParams(templateId, userAddress, {
+      invoice_id: invoiceId,
+    });
+    const requestJson = request.toJsonString();
+
+    const signedRequest = await primus.sign(requestJson);
+    const attestation = await primus.startAttestation(signedRequest);
+
+    return {
+      success: true,
+      attestation,
+      timestamp: Date.now(),
+      data: { template_id: templateId, invoice_id: invoiceId },
+    };
+  } catch (error) {
+    console.error("Invoice attestation failed:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Attestation failed",
+    };
+  }
+}
+
+/**
+ * Check if Primus is available and configured
+ */
+export function isPrimusConfigured(): boolean {
+  return !!PRIMUS_APP_ID;
+}
+
+/**
+ * Get Primus configuration status
+ */
+export function getPrimusStatus(): {
+  configured: boolean;
+  appId: string;
+  mode: "production" | "demo";
+} {
+  return {
+    configured: !!PRIMUS_APP_ID,
+    appId: PRIMUS_APP_ID ? `${PRIMUS_APP_ID.slice(0, 8)}...` : "",
+    mode: PRIMUS_APP_ID ? "production" : "demo",
   };
 }

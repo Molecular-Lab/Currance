@@ -1,201 +1,119 @@
 "use client";
 
 import Link from "next/link";
-import { useAccount, useConnect, useDisconnect } from "wagmi";
-import { injected } from "wagmi/connectors";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { shortenAddress } from "@/lib/utils";
-import { Shield, Hospital, FileCheck, LayoutDashboard } from "lucide-react";
+import { Building2, Shield, FileCheck } from "lucide-react";
 
 export default function Home() {
-  const { address, isConnected } = useAccount();
-  const { connect } = useConnect();
-  const { disconnect } = useDisconnect();
-
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
-      {/* Header */}
-      <header className="border-b bg-white/50 backdrop-blur-sm">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <div className="flex items-center gap-2">
-            <Shield className="h-8 w-8 text-blue-600" />
-            <h1 className="text-2xl font-bold">Curance</h1>
+    <div className="min-h-screen bg-background flex flex-col">
+      {/* Main content */}
+      <main className="flex-1 flex flex-col items-center justify-center px-6 py-12">
+        {/* Logo/Brand */}
+        <div className="text-center mb-12">
+          <div className="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <Shield className="h-8 w-8 text-green-600" />
           </div>
-
-          {isConnected ? (
-            <Button onClick={() => disconnect()} variant="outline">
-              {shortenAddress(address || "")}
-            </Button>
-          ) : (
-            <Button onClick={() => connect({ connector: injected() })}>
-              Connect Wallet
-            </Button>
-          )}
+          <h1 className="text-4xl font-bold tracking-tight mb-2">CURANCE</h1>
+          <p className="text-muted-foreground">Privacy-Preserving Health Insurance</p>
         </div>
-      </header>
 
-      {/* Hero */}
-      <main className="container mx-auto px-4 py-16">
-        <div className="text-center mb-16">
-          <h2 className="text-5xl font-bold mb-4 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-            Privacy-Preserving Health Insurance
-          </h2>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            Insurance underwrites based on your health data WITHOUT knowing your identity.
-            Powered by zero-knowledge proofs and blockchain technology.
+        {/* Action buttons */}
+        <div className="w-full max-w-[280px] space-y-4">
+          <Link href="/curance/register" className="block">
+            <Button
+              variant="default"
+              size="lg"
+              className="w-full h-14 text-base font-medium"
+            >
+              Register Policy
+            </Button>
+          </Link>
+
+          <Link href="/claim" className="block">
+            <Button
+              variant="outline"
+              size="lg"
+              className="w-full h-14 text-base font-medium"
+            >
+              File Claim
+            </Button>
+          </Link>
+        </div>
+
+        {/* Demo section */}
+        <div className="mt-12 pt-8 border-t w-full max-w-[320px]">
+          <p className="text-xs text-center text-muted-foreground uppercase tracking-wide mb-4">
+            Demo Mode
+          </p>
+
+          <Link href="/hospital" className="block">
+            <Button
+              variant="secondary"
+              size="lg"
+              className="w-full h-12 text-sm"
+            >
+              <Building2 className="mr-2 h-4 w-4" />
+              Hospital Portal
+            </Button>
+          </Link>
+
+          <p className="mt-3 text-xs text-center text-muted-foreground">
+            View mock health records and invoices
           </p>
         </div>
 
-        {/* Features */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
-          <Link href="/dashboard">
-            <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
-              <CardHeader>
-                <LayoutDashboard className="h-12 w-12 text-orange-600 mb-4" />
-                <CardTitle>Dashboard</CardTitle>
-                <CardDescription>
-                  View your policy details and coverage status
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ul className="text-sm space-y-2 text-gray-600">
-                  <li>✓ Policy coverage details</li>
-                  <li>✓ Remaining balance</li>
-                  <li>✓ Expiry date tracking</li>
-                  <li>✓ Quick claim access</li>
-                </ul>
-              </CardContent>
-            </Card>
-          </Link>
-
-          <Link href="/register">
-            <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
-              <CardHeader>
-                <Shield className="h-12 w-12 text-blue-600 mb-4" />
-                <CardTitle>Register Policy</CardTitle>
-                <CardDescription>
-                  Buy insurance coverage by proving your health data privately
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ul className="text-sm space-y-2 text-gray-600">
-                  <li>✓ Verify health data via zkTLS</li>
-                  <li>✓ Generate cryptographic commitment</li>
-                  <li>✓ Pay premium for coverage</li>
-                  <li>✓ Identity stays private</li>
-                </ul>
-              </CardContent>
-            </Card>
-          </Link>
-
-          <Link href="/hospital">
-            <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
-              <CardHeader>
-                <Hospital className="h-12 w-12 text-green-600 mb-4" />
-                <CardTitle>Hospital Portal</CardTitle>
-                <CardDescription>
-                  Healthcare providers create claims for treatments
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ul className="text-sm space-y-2 text-gray-600">
-                  <li>✓ Receive patient commitment</li>
-                  <li>✓ Create claim with amount</li>
-                  <li>✓ Automatic settlement</li>
-                  <li>✓ No patient identity needed</li>
-                </ul>
-              </CardContent>
-            </Card>
-          </Link>
-
-          <Link href="/claim">
-            <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
-              <CardHeader>
-                <FileCheck className="h-12 w-12 text-purple-600 mb-4" />
-                <CardTitle>Verify Claim</CardTitle>
-                <CardDescription>
-                  Patients verify claims and trigger automatic payment
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ul className="text-sm space-y-2 text-gray-600">
-                  <li>✓ Enter claim ID from hospital</li>
-                  <li>✓ Prove ownership with secret</li>
-                  <li>✓ Auto-settle to hospital</li>
-                  <li>✓ Privacy maintained</li>
-                </ul>
-              </CardContent>
-            </Card>
-          </Link>
-        </div>
-
         {/* How it works */}
-        <div className="mt-20 max-w-3xl mx-auto">
-          <h3 className="text-3xl font-bold text-center mb-8">How It Works</h3>
+        <div className="mt-10 w-full max-w-[320px]">
+          <p className="text-xs text-center text-muted-foreground uppercase tracking-wide mb-4">
+            How zkTLS Works
+          </p>
 
-          <div className="space-y-6">
-            <div className="flex gap-4">
-              <div className="flex-shrink-0 w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center font-bold">
+          <div className="space-y-3">
+            <div className="flex items-start gap-3 p-3 bg-muted rounded-lg">
+              <div className="w-6 h-6 bg-neutral-200 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-medium">
                 1
               </div>
               <div>
-                <h4 className="font-semibold mb-1">Register Policy</h4>
-                <p className="text-gray-600">
-                  Prove your health data from a trusted source using Reclaim Protocol (zkTLS).
-                  Create a cryptographic commitment that hides your identity.
+                <p className="text-sm font-medium">View Data</p>
+                <p className="text-xs text-muted-foreground">
+                  Check your records at Hospital Portal
                 </p>
               </div>
             </div>
 
-            <div className="flex gap-4">
-              <div className="flex-shrink-0 w-8 h-8 bg-green-600 text-white rounded-full flex items-center justify-center font-bold">
+            <div className="flex items-start gap-3 p-3 bg-muted rounded-lg">
+              <div className="w-6 h-6 bg-neutral-200 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-medium">
                 2
               </div>
               <div>
-                <h4 className="font-semibold mb-1">Receive Treatment</h4>
-                <p className="text-gray-600">
-                  Share your commitment with the hospital. They create a claim against your policy
-                  without learning who you are.
+                <p className="text-sm font-medium">Create Template</p>
+                <p className="text-xs text-muted-foreground">
+                  Set up verification at Primus
                 </p>
               </div>
             </div>
 
-            <div className="flex gap-4">
-              <div className="flex-shrink-0 w-8 h-8 bg-purple-600 text-white rounded-full flex items-center justify-center font-bold">
+            <div className="flex items-start gap-3 p-3 bg-muted rounded-lg">
+              <div className="w-6 h-6 bg-neutral-200 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-medium">
                 3
               </div>
               <div>
-                <h4 className="font-semibold mb-1">Verify & Settle</h4>
-                <p className="text-gray-600">
-                  Use your secret to prove claim ownership. Payment automatically transfers to the
-                  hospital. Your identity remains private throughout.
+                <p className="text-sm font-medium">Verify & Submit</p>
+                <p className="text-xs text-muted-foreground">
+                  Prove your data without exposing it
                 </p>
               </div>
             </div>
           </div>
         </div>
-
-        {/* CTA */}
-        {!isConnected && (
-          <div className="mt-16 text-center">
-            <Button
-              size="lg"
-              onClick={() => connect({ connector: injected() })}
-              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
-            >
-              Get Started - Connect Wallet
-            </Button>
-          </div>
-        )}
       </main>
 
       {/* Footer */}
-      <footer className="border-t mt-20 py-8 bg-white">
-        <div className="container mx-auto px-4 text-center text-gray-600">
-          <p>Built with Reclaim Protocol & Base Sepolia</p>
-          <p className="text-sm mt-2">POC for ETH Bangkok Hackathon</p>
-        </div>
+      <footer className="py-6 text-center">
+        <p className="text-xs text-muted-foreground">
+          Powered by Primus zkTLS
+        </p>
       </footer>
     </div>
   );
