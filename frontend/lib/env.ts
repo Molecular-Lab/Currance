@@ -1,37 +1,9 @@
-/**
- * Environment configuration
- * Fetches config from server-side API to keep secrets private
- */
-
-interface EnvConfig {
-  PRIMUS_APP_ID: string;
-  PRIMUS_APP_SECRET: string;
-  API_URL: string;
-}
-
-let ENV: EnvConfig | null = null;
-
-export async function loadEnv(): Promise<EnvConfig> {
-  if (ENV) return ENV;
-
-  try {
-    const response = await fetch("/api/config");
-    if (!response.ok) {
-      throw new Error("Failed to fetch config");
-    }
-    const config = await response.json();
-    ENV = {
-      PRIMUS_APP_ID: config.primusAppId,
-      PRIMUS_APP_SECRET: config.primusAppSecret,
-      API_URL: config.apiUrl,
+export const ENV =  {
+      PRIMUS_APP_ID: "0x9480fd5d007b5f3f62696e20ac4bc716f5419926",
+      PRIMUS_APP_SECRET: "0xf26931e4ab111ca54aa756a9c5790b1df4ce84f0b240d925484820810e253636",
+      API_URL: "https://insurance-zktls-backend.fly.dev",
+      RECORD_TEMPLATE_ID: "4b748d9b-da86-446c-a56d-d534616a45f4",
+      CLAIM_TEMPLATE_ID: "1bfd0a5c-185b-4e3e-b6ec-565232899005"
     };
-    return ENV;
-  } catch (error) {
-    console.error("Error loading env config:", error);
-    throw error;
-  }
-}
 
-export function getEnv(): EnvConfig | null {
-  return ENV;
-}
+

@@ -18,7 +18,6 @@ import {
   startHealthRecordAttestation,
   verifyAttestation,
   getPrimusStatus,
-  CURANCE_TEMPLATES,
 } from "@/lib/primus";
 import {
   ArrowLeft,
@@ -29,6 +28,7 @@ import {
   AlertCircle,
   Building2,
 } from "lucide-react";
+import { ENV } from "@/lib/env";
 
 type FlowState = "initial" | "attesting" | "success" | "error";
 
@@ -90,11 +90,11 @@ function RegisterPageContent() {
 
     // Reset any previous registration
     resetRegistration();
-    setRegistration({ template_id: CURANCE_TEMPLATES.TEMPLATE_ID });
+    setRegistration({ template_id: ENV.RECORD_TEMPLATE_ID });
 
     try {
       console.log("Starting Primus attestation flow...");
-      console.log("Template ID:", CURANCE_TEMPLATES.TEMPLATE_ID);
+      console.log("Template ID:", ENV.RECORD_TEMPLATE_ID);
       console.log("User Address:", userAddress);
 
       // This call will:
@@ -122,7 +122,7 @@ function RegisterPageContent() {
 
           // Success! Update store and show modal
           setRegistration({
-            template_id: CURANCE_TEMPLATES.TEMPLATE_ID,
+            template_id: ENV.RECORD_TEMPLATE_ID,
             verified: true,
             attestation: attestationStr,
             record_id: verifyResult.data?.record_id || "verified_record",
@@ -282,7 +282,7 @@ function RegisterPageContent() {
                   Debug Info
                 </summary>
                 <div className="mt-2 p-2 bg-muted rounded text-[10px] font-mono space-y-1">
-                  <p>Template: {CURANCE_TEMPLATES.TEMPLATE_ID}</p>
+                  <p>Template: {ENV.RECORD_TEMPLATE_ID}</p>
                   <p>User: {userAddress}</p>
                   <p>SDK Ready: {sdkReady ? "Yes" : "No"}</p>
                   <p>Mode: {primusStatus.mode}</p>
@@ -307,7 +307,7 @@ function RegisterPageContent() {
                   </p>
                 </div>
                 <div className="text-xs text-muted-foreground space-y-1">
-                  <p>Template: {CURANCE_TEMPLATES.TEMPLATE_ID}</p>
+                  <p>Template: {ENV.RECORD_TEMPLATE_ID}</p>
                   <p>The extension will redirect you to the hospital portal</p>
                 </div>
               </div>

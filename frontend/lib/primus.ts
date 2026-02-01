@@ -2,7 +2,7 @@
  * Primus zkTLS Integration for Curance
  *
  * Flow:
- * 1. Load env config from server API
+ * 1. Fetch env config from /api/config (client-side)
  * 2. Initialize SDK with appId and appSecret
  * 3. Generate request params with templateId and userAddress
  * 4. Sign the request
@@ -11,7 +11,7 @@
  */
 
 import { PrimusZKTLS } from "@primuslabs/zktls-js-sdk";
-import { loadEnv, getEnv } from "./env";
+import { ENV } from "./env";
 
 // Types
 export interface PrimusAttestationData {
@@ -37,11 +37,38 @@ export interface VerificationResult {
   error?: string;
 }
 
-// Pre-configured template IDs
-export const CURANCE_TEMPLATES = {
-  TEMPLATE_ID: "1bfd0a5c-185b-4e3e-b6ec-565232899005",
-  INVOICES: "invoice-template-id-placeholder",
-} as const;
+interface EnvConfig {
+  primusAppId: string;
+  primusAppSecret: string;
+  apiUrl: string;
+  recordTemplateId: string;
+  claimTemplateId: string;
+}
+
+// Cached config
+let cachedEnv: EnvConfig | null = null;
+
+/**
+ * Fetch env config from server API (for client-side use)
+ */
+async function fetchEnv(): Promise<EnvConfig> {
+  if (cachedEnv) return cachedEnv;
+
+  const response = await fetch("/api/config");
+  if (!response.ok) {
+    throw new Error("Failed to fetch config");
+  }
+  cachedEnv = await response.json();
+  return cachedEnv!;
+}
+
+// Template IDs getter
+export function getTemplateIds() {
+  return {
+    RECORD_TEMPLATE_ID: ENV.RECORD_TEMPLATE_ID,
+    CLAIM_TEMPLATE_ID: ENV.CLAIM_TEMPLATE_ID,
+  };
+}
 
 // Primus SDK instance
 let primusZKTLS: PrimusZKTLS | null = null;
@@ -61,12 +88,12 @@ export async function initPrimusSDK(): Promise<boolean> {
   }
 
   try {
-    // Load env config from server
-    const env = await loadEnv();
+    // Fetch env config from server API
+    const env = await fetchEnv();
 
     // Initialize SDK
     primusZKTLS = new PrimusZKTLS();
-    const initResult = await primusZKTLS.init(env.PRIMUS_APP_ID, env.PRIMUS_APP_SECRET);
+    const initResult = await primusZKTLS.init(env.primusAppId, env.primusAppSecret);
     console.log("Primus SDK initialized:", initResult);
 
     isInitialized = true;
@@ -103,7 +130,7 @@ export async function startHealthRecordAttestation(
     }
 
     const primus = getPrimus();
-    const templateId = CURANCE_TEMPLATES.TEMPLATE_ID;
+    const templateId = ENV.RECORD_TEMPLATE_ID;
 
     console.log("Starting attestation with template:", templateId);
     console.log("User address:", userAddress);
@@ -152,7 +179,7 @@ export async function startInvoiceAttestation(
     }
 
     const primus = getPrimus();
-    const templateId = CURANCE_TEMPLATES.INVOICES;
+    const templateId = ENV.RECORD_TEMPLATE_ID;
 
     // Generate request with invoice_id param
     const request = primus.generateRequestParams(templateId, userAddress);
@@ -210,8 +237,7 @@ export async function verifyAttestation(
  * Check if Primus is configured
  */
 export function isPrimusConfigured(): boolean {
-  const env = getEnv();
-  return !!env?.PRIMUS_APP_ID;
+  return !!cachedEnv?.primusAppId;
 }
 
 /**
@@ -222,10 +248,9 @@ export function getPrimusStatus(): {
   appId: string;
   mode: "production" | "demo";
 } {
-  const env = getEnv();
   return {
-    configured: !!env?.PRIMUS_APP_ID,
-    appId: env?.PRIMUS_APP_ID ? `${env.PRIMUS_APP_ID.slice(0, 10)}...` : "",
-    mode: env?.PRIMUS_APP_ID ? "production" : "demo",
+    configured: !!cachedEnv?.primusAppId,
+    appId: cachedEnv?.primusAppId ? `${cachedEnv.primusAppId.slice(0, 10)}...` : "",
+    mode: cachedEnv?.primusAppId ? "production" : "demo",
   };
 }
